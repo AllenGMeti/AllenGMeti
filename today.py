@@ -46,6 +46,9 @@ def simple_request(func_name, query, variables):
     """
     request = requests.post('https://api.github.com/graphql', json={'query': query, 'variables':variables}, headers=HEADERS)
     if request.status_code == 200:
+        body = request.json()
+        if body.get('errors'):
+            raise Exception(func_name, ' returned GraphQL errors:', body['errors'], QUERY_COUNT)
         return request
     raise Exception(func_name, ' has failed with a', request.status_code, request.text, QUERY_COUNT)
 
@@ -146,8 +149,12 @@ def recursive_loc(owner, repo_name, data, cache_comment, addition_total=0, delet
     variables = {'repo_name': repo_name, 'owner': owner, 'cursor': cursor}
     request = requests.post('https://api.github.com/graphql', json={'query': query, 'variables':variables}, headers=HEADERS) # I cannot use simple_request(), because I want to save the file before raising Exception
     if request.status_code == 200:
-        if request.json()['data']['repository']['defaultBranchRef'] != None: # Only count commits if repo isn't empty
-            return loc_counter_one_repo(owner, repo_name, data, cache_comment, request.json()['data']['repository']['defaultBranchRef']['target']['history'], addition_total, deletion_total, my_commits)
+        body = request.json()
+        if body.get('errors'):
+            force_close_file(data, cache_comment)
+            raise Exception('recursive_loc() returned GraphQL errors:', body['errors'], QUERY_COUNT)
+        if body['data']['repository']['defaultBranchRef'] != None: # Only count commits if repo isn't empty
+            return loc_counter_one_repo(owner, repo_name, data, cache_comment, body['data']['repository']['defaultBranchRef']['target']['history'], addition_total, deletion_total, my_commits)
         else: return 0
     force_close_file(data, cache_comment) # saves what is currently in the file before this program crashes
     if request.status_code == 403:
