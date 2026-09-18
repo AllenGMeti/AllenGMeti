@@ -33,6 +33,7 @@ jobs:
         env:
           ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
           USER_NAME: ${{ secrets.USER_NAME }}
+          EXTRA_EMAILS: "metiallen027@gmail.com,ma24019726@biust.ac.bw"
         run: python today.py
       - name: Commit
         run: |-
