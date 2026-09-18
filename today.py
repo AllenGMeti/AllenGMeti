@@ -12,6 +12,10 @@ import hashlib
 # Issues and pull requests permissions not needed at the moment, but may be used in the future
 HEADERS = {'authorization': 'token '+ os.environ['ACCESS_TOKEN']}
 USER_NAME = os.environ['USER_NAME'] # 'Andrew6rant'
+# Commit emails that aren't linked to the GitHub account (e.g. school email, local git config) - comma separated
+EXTRA_EMAILS = [e.strip().lower() for e in os.environ.get('EXTRA_EMAILS', '').split(',') if e.strip()]
+# Commits touching more than this many lines (added+deleted) are treated as bulk/vendored imports and left out of the LOC count
+BULK_LIMIT = int(os.environ.get('BULK_LIMIT', '20000'))
 QUERY_COUNT = {'user_getter': 0, 'follower_getter': 0, 'graph_repos_stars': 0, 'recursive_loc': 0, 'graph_commits': 0, 'loc_query': 0}
 
 
@@ -128,6 +132,7 @@ def recursive_loc(owner, repo_name, data, cache_comment, addition_total=0, delet
                                         committedDate
                                     }
                                     author {
+                                        email
                                         user {
                                             id
                                         }
@@ -168,10 +173,17 @@ def loc_counter_one_repo(owner, repo_name, data, cache_comment, history, additio
     only adds the LOC value of commits authored by me
     """
     for node in history['edges']:
-        if node['node']['author']['user'] == OWNER_ID:
+        author = node['node']['author'] or {}
+        user = author.get('user')
+        is_mine = user == OWNER_ID or (user is None and (author.get('email') or '').lower() in EXTRA_EMAILS)
+        if is_mine:
             my_commits += 1
-            addition_total += node['node']['additions']
-            deletion_total += node['node']['deletions']
+            adds, dels = node['node']['additions'], node['node']['deletions']
+            if adds + dels > BULK_LIMIT: # bulk import / vendored / generated files - counts as a commit, not as code written
+                print('   skipped bulk commit in', owner + '/' + repo_name, '(+' + str(adds) + ' -' + str(dels) + ')')
+                continue
+            addition_total += adds
+            deletion_total += dels
 
     if history['edges'] == [] or not history['pageInfo']['hasNextPage']:
         return addition_total, deletion_total, my_commits
