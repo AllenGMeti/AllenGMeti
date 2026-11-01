@@ -80,6 +80,8 @@ def graph_commits(start_date, end_date):
 def graph_repos_stars(count_type, owner_affiliation, cursor=None, add_loc=0, del_loc=0):
     """
     Uses GitHub's GraphQL v4 API to return my total repository, star, or lines of code count.
+    NOTE: uses stargazerCount (Int!) instead of the stargazers connection, because GitHub
+    now returns FORBIDDEN for the stargazers connection on fine-grained PATs.
     """
     query_count('graph_repos_stars')
     query = '''
@@ -91,9 +93,7 @@ def graph_repos_stars(count_type, owner_affiliation, cursor=None, add_loc=0, del
                     node {
                         ... on Repository {
                             nameWithOwner
-                            stargazers {
-                                totalCount
-                            }
+                            stargazerCount
                         }
                     }
                 }
@@ -328,10 +328,11 @@ def force_close_file(data, cache_comment):
 
 def stars_counter(data):
     """
-    Count total stars in repositories owned by me
+    Count total stars in repositories owned by me.
+    Reads stargazerCount (Int!) directly from each Repository node.
     """
     total_stars = 0
-    for node in data: total_stars += node['node']['stargazers']['totalCount']
+    for node in data: total_stars += node['node']['stargazerCount']
     return total_stars
 
 
